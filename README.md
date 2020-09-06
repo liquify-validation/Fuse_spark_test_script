@@ -4,6 +4,9 @@ Check that fuse test net (spark) new block reward algorithm matches the expected
 
 
 Current assumptions (will fix later):
+
 • The validators also become active the cycle after they stake
+
 • The delegation amount doesn't change in a cycle
+
 • No blocks are missed
