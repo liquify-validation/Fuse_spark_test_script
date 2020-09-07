@@ -1,5 +1,6 @@
 from web3 import Web3
 import csv
+import json
 from testnetCon import *
 
 
@@ -24,7 +25,7 @@ initSupply = 300000000
 
 cycleCounter = 0
 
-i = 100
+i = 50000
 
 validatorDict = {}
 upToo = 0
@@ -35,30 +36,30 @@ upToo = 0
 while i < newBlock:
     valCounter = 0
     validatorDict[cycleCounter] = {}
-    cycleDuration = fuseConsensusContract.functions.getCycleDurationBlocks(block_identifier=i).call()
+    cycleDuration = fuseConsensusContract.functions.getCycleDurationBlocks().call(block_identifier=i)
     infPerYear = initSupply * (inflation / 100)
     infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
 
-    vals = fuseConsensusContract.functions.currentValidators(block_identifier=i).call()
+    vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=i)
     for val in vals:
         validatorDict[cycleCounter][val] = {}
         valCounter += 1
 
     #work out share and if they have delegates in that cycle
     for val in validatorDict[cycleCounter]:
-        delegatorsForVal = fuseConsensusContract.functions.delegators(val,block_identifier=i).call()
+        delegatorsForVal = fuseConsensusContract.functions.delegators(val).call(block_identifier=i)
         validatorDict[cycleCounter][val]["delegators"] = {}
         sumOfDelegates = 0
         for dele in delegatorsForVal:
             validatorDict[cycleCounter][val]["delegators"][dele] = {}
-            delegatedAmount = float(fuseConsensusContract.functions.delegatedAmount(dele,val,block_identifier=i).call()/10**18)
+            delegatedAmount = float(fuseConsensusContract.functions.delegatedAmount(dele,val).call(block_identifier=i)/10**18)
             validatorDict[cycleCounter][val]["delegators"][dele]['Amount'] = delegatedAmount
             sumOfDelegates += delegatedAmount
 
-        stakedAmount = float(fuseConsensusContract.functions.stakeAmount(val,block_identifier=i).call()/10**18)
+        stakedAmount = float(fuseConsensusContract.functions.stakeAmount(val).call(block_identifier=i)/10**18)
         validatorDict[cycleCounter][val]['stakedAmount'] = stakedAmount
         validatorDict[cycleCounter][val]['selfStaked'] = stakedAmount - sumOfDelegates
-        validatorDict[cycleCounter][val]['fee'] = float(fuseConsensusContract.functions.validatorFee(val,block_identifier=i).call()/10**18)
+        validatorDict[cycleCounter][val]['fee'] = float(fuseConsensusContract.functions.validatorFee(val).call(block_identifier=i)/10**18)
 
     totalStakedCycle = 0
     for val in validatorDict[cycleCounter]:
@@ -76,10 +77,12 @@ while i < newBlock:
         validatorDict[cycleCounter][val]['rewardPerBlock'] = round((validatorDict[cycleCounter][val]['reward']/cycleDuration) * valCounter,6)
 
 
-    validatorDict[cycleCounter]['startBlock'] = fuseConsensusContract.functions.getCurrentCycleStartBlock(block_identifier=i).call()
-    validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock(block_identifier=i).call() - 1
+    validatorDict[cycleCounter]['startBlock'] = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i)
+    validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i) - 1
 
-    i = fuseConsensusContract.functions.getCurrentCycleEndBlock(block_identifier=i).call()
+    start = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i)
+    end = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i) + cycleDuration
+    i = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i) + 1
     cycleCounter += 1
     upToo = i
 
@@ -91,7 +94,7 @@ data = {}
 cycleSwap = 0
 
 
-for i in range (100, upToo, 1):
+for i in range (50000, upToo, 1):
     miner = web3Fuse.eth.getBlock(i)['miner']
     data[i] = {}
     data[i]['miner'] = {}
@@ -116,12 +119,15 @@ for i in range (100, upToo, 1):
     if data[i]['miner']['diff'] != validatorDict[cycleSwap][miner]['rewardPerBlock']:
         print("reward at block " + str(i) + " for validator " + miner + " is not correct! expected " + str(validatorDict[cycleSwap][miner]['rewardPerBlock']) + " got " + str(data[i]['miner']['diff']))
 
-    if i % 1000 == 0:
+    if i % 100 == 0:
         print("atBlock ", str(i))
 
     if i == validatorDict[cycleSwap]['endBlock']:
         print("newCycleStarted block " + str(validatorDict[cycleSwap]['endBlock'] + 1))
         cycleSwap+=1
+
+with open('results.json', 'w') as fp:
+    json.dump(data, fp)
 
 with open('results.csv', 'w') as f:
   w = csv.writer(f)
