@@ -14,52 +14,58 @@ blockRewardContract = web3Fuse.eth.contract(abi=blockRewardCon, address=REWARD_A
 
 newBlock = web3Fuse.eth.blockNumber
 
-cycleDuration = fuseConsensusContract.functions.getCycleDurationBlocks().call()
+
 
 inflation = blockRewardContract.functions.getInflation().call()
 blocksPerYear = blockRewardContract.functions.getBlocksPerYear().call()
 
 initSupply = 300000000
 
-infPerYear = initSupply*(inflation/100)
-infPerCycle = (infPerYear/blocksPerYear)*cycleDuration
 
 cycleCounter = 0
+
+i = 100
 
 validatorDict = {}
 upToo = 0
 
 
 #get the validators per cycle
-for i in range (165980,newBlock,cycleDuration):
+#for i in range (165980,newBlock,cycleDuration):
+while i < newBlock:
     valCounter = 0
     validatorDict[cycleCounter] = {}
-    while web3Fuse.eth.getBlock(i + valCounter)['miner'] not in validatorDict[cycleCounter]:
-        validatorDict[cycleCounter][(web3Fuse.eth.getBlock(i + valCounter)['miner'])] = {}
+    cycleDuration = fuseConsensusContract.functions.getCycleDurationBlocks(block_identifier=i).call()
+    infPerYear = initSupply * (inflation / 100)
+    infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
+
+    vals = fuseConsensusContract.functions.currentValidators(block_identifier=i).call()
+    for val in vals:
+        validatorDict[cycleCounter][val] = {}
         valCounter += 1
 
     #work out share and if they have delegates in that cycle
     for val in validatorDict[cycleCounter]:
-        delegatorsForVal = fuseConsensusContract.functions.delegators(val).call()
+        delegatorsForVal = fuseConsensusContract.functions.delegators(val,block_identifier=i).call()
         validatorDict[cycleCounter][val]["delegators"] = {}
         sumOfDelegates = 0
         for dele in delegatorsForVal:
             validatorDict[cycleCounter][val]["delegators"][dele] = {}
-            delegatedAmount = float(fuseConsensusContract.functions.delegatedAmount(dele,val).call()/10**18)
+            delegatedAmount = float(fuseConsensusContract.functions.delegatedAmount(dele,val,block_identifier=i).call()/10**18)
             validatorDict[cycleCounter][val]["delegators"][dele]['Amount'] = delegatedAmount
             sumOfDelegates += delegatedAmount
 
-        stakedAmount = float(fuseConsensusContract.functions.stakeAmount(val).call()/10**18)
+        stakedAmount = float(fuseConsensusContract.functions.stakeAmount(val,block_identifier=i).call()/10**18)
         validatorDict[cycleCounter][val]['stakedAmount'] = stakedAmount
         validatorDict[cycleCounter][val]['selfStaked'] = stakedAmount - sumOfDelegates
-        validatorDict[cycleCounter][val]['fee'] = float(fuseConsensusContract.functions.validatorFee(val).call()/10**18)
+        validatorDict[cycleCounter][val]['fee'] = float(fuseConsensusContract.functions.validatorFee(val,block_identifier=i).call()/10**18)
 
     totalStakedCycle = 0
     for val in validatorDict[cycleCounter]:
         totalStakedCycle += validatorDict[cycleCounter][val]['stakedAmount']
 
     for val in validatorDict[cycleCounter]:
-        #calc expected rewards for the node (validator and delegators)
+        #calc rewards
         validatorDict[cycleCounter][val]['rewardToNode'] = infPerCycle * (validatorDict[cycleCounter][val]['stakedAmount']/totalStakedCycle)
         delegatesRewards = 0
         for dele in validatorDict[cycleCounter][val]["delegators"]:
@@ -70,6 +76,10 @@ for i in range (165980,newBlock,cycleDuration):
         validatorDict[cycleCounter][val]['rewardPerBlock'] = round((validatorDict[cycleCounter][val]['reward']/cycleDuration) * valCounter,6)
 
 
+    validatorDict[cycleCounter]['startBlock'] = fuseConsensusContract.functions.getCurrentCycleStartBlock(block_identifier=i).call()
+    validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock(block_identifier=i).call() - 1
+
+    i = fuseConsensusContract.functions.getCurrentCycleEndBlock(block_identifier=i).call()
     cycleCounter += 1
     upToo = i
 
@@ -80,11 +90,8 @@ with open('cycleData.csv', 'w') as f:
 data = {}
 cycleSwap = 0
 
-#run across passed blocks and check if the rewards match the expected values. Note!!! this assumes no missed blocks currently! 
-for i in range (165981, upToo, 1):
-    if i % cycleDuration == 0:
-        cycleSwap+=1
 
+for i in range (100, upToo, 1):
     miner = web3Fuse.eth.getBlock(i)['miner']
     data[i] = {}
     data[i]['miner'] = {}
@@ -111,6 +118,10 @@ for i in range (165981, upToo, 1):
 
     if i % 1000 == 0:
         print("atBlock ", str(i))
+
+    if i == validatorDict[cycleSwap]['endBlock']:
+        print("newCycleStarted block " + str(validatorDict[cycleSwap]['endBlock'] + 1))
+        cycleSwap+=1
 
 with open('results.csv', 'w') as f:
   w = csv.writer(f)
