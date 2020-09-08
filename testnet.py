@@ -25,14 +25,13 @@ initSupply = 300000000
 
 cycleCounter = 0
 
-i = 50000
+i = 100000
 
 validatorDict = {}
 upToo = 0
 
 
 #get the validators per cycle
-#for i in range (165980,newBlock,cycleDuration):
 while i < newBlock:
     valCounter = 0
     validatorDict[cycleCounter] = {}
@@ -40,7 +39,7 @@ while i < newBlock:
     infPerYear = initSupply * (inflation / 100)
     infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
 
-    vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=i)
+    vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=i + 20)
     for val in vals:
         validatorDict[cycleCounter][val] = {}
         valCounter += 1
@@ -86,15 +85,21 @@ while i < newBlock:
     cycleCounter += 1
     upToo = i
 
+upToo = newBlock
+
 with open('cycleData.csv', 'w') as f:
     w = csv.writer(f)
     w.writerows(validatorDict.items())
 
+with open('cycleData.json', 'w') as fp:
+    json.dump(validatorDict, fp)
+
 data = {}
 cycleSwap = 0
 
+oldTimeStamp = 0
 
-for i in range (50000, upToo, 1):
+for i in range (100000, upToo, 1):
     miner = web3Fuse.eth.getBlock(i)['miner']
     data[i] = {}
     data[i]['miner'] = {}
@@ -119,8 +124,12 @@ for i in range (50000, upToo, 1):
     if data[i]['miner']['diff'] != validatorDict[cycleSwap][miner]['rewardPerBlock']:
         print("reward at block " + str(i) + " for validator " + miner + " is not correct! expected " + str(validatorDict[cycleSwap][miner]['rewardPerBlock']) + " got " + str(data[i]['miner']['diff']))
 
-    if i % 100 == 0:
+    if i % 250 == 0:
         print("atBlock ", str(i))
+
+    if i % 5000 == 0:
+        with open('results.json', 'w') as fp:
+            json.dump(data, fp)
 
     if i == validatorDict[cycleSwap]['endBlock']:
         print("newCycleStarted block " + str(validatorDict[cycleSwap]['endBlock'] + 1))
