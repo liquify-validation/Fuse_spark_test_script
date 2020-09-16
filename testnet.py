@@ -25,7 +25,7 @@ initSupply = 300000000
 
 cycleCounter = 0
 
-i = 100000
+i = 220000
 
 validatorDict = {}
 upToo = 0
@@ -39,10 +39,13 @@ while i < newBlock:
     infPerYear = initSupply * (inflation / 100)
     infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
 
+
     vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=i + 20)
     for val in vals:
         validatorDict[cycleCounter][val] = {}
         valCounter += 1
+
+
 
     #work out share and if they have delegates in that cycle
     for val in validatorDict[cycleCounter]:
@@ -76,10 +79,30 @@ while i < newBlock:
         validatorDict[cycleCounter][val]['rewardPerBlock'] = round((validatorDict[cycleCounter][val]['reward']/cycleDuration) * valCounter,6)
 
 
-    validatorDict[cycleCounter]['startBlock'] = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i)
-    validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i) - 1
+    #skew the start if we have had new or left validators
+    itr = 0
+    if(cycleCounter != 0):
+        if (len(validatorDict[cycleCounter]) != (len(validatorDict[cycleCounter-1])-3)):
+            #check at what block we change at
+            NotChanged = True
+            oldLen = len(fuseConsensusContract.functions.currentValidators().call(block_identifier=i-1))
 
-    start = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i)
+            while True:
+                if(len(fuseConsensusContract.functions.currentValidators().call(block_identifier=i+itr)) != oldLen):
+                    break
+                itr+=1
+
+            validatorDict[cycleCounter-1]['endBlock'] = (i-1) + itr
+
+    validatorDict[cycleCounter]['startBlock'] = i + itr
+    validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(
+        block_identifier=i) - 1
+    validatorDict[cycleCounter]['propagation'] = itr
+
+
+
+
+    start = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i+itr)
     end = fuseConsensusContract.functions.getCurrentCycleStartBlock().call(block_identifier=i) + cycleDuration
     i = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i) + 1
     cycleCounter += 1
