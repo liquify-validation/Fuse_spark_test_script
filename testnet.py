@@ -25,7 +25,7 @@ initSupply = 300000000
 
 cycleCounter = 0
 
-i = 220000
+i = 100000
 
 validatorDict = {}
 upToo = 0
