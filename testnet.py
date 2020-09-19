@@ -124,6 +124,17 @@ oldTimeStamp = 0
 
 for i in range (100000, upToo, 1):
     miner = web3Fuse.eth.getBlock(i)['miner']
+    trans = web3Fuse.eth.getBlock(i)['transactions']
+
+    feeFromTrans = 0
+
+    for tran in trans:
+        transaction = web3Fuse.eth.getTransaction(tran)
+
+        feeFromTrans += transaction['gas'] * transaction['gasPrice']
+
+    feeFromTrans = float(feeFromTrans / 10 ** 18)
+
     data[i] = {}
     data[i]['miner'] = {}
     data[i]['miner']['node'] = miner
@@ -132,6 +143,7 @@ for i in range (100000, upToo, 1):
     diff = (data[i]['miner']['balanceNow']) - (data[i]['miner']['balanceBefore'])
     data[i]['miner']['diff'] = round(diff,6)
     data[i]['miner']['expectedReward'] = validatorDict[cycleSwap][miner]['rewardPerBlock']
+    data[i]['miner']['transFees'] = feeFromTrans
     data[i]['delegator'] = {}
 
     for dele in validatorDict[cycleSwap][miner]["delegators"]:
@@ -144,7 +156,7 @@ for i in range (100000, upToo, 1):
         if data[i]['delegator'][dele]['diff'] != validatorDict[cycleSwap][miner]["delegators"][dele]['rewardPerBlock']:
             print("reward at block " + str(i) + " for delegator " + dele + " is not correct! expected " + str(validatorDict[cycleSwap][miner]["delegators"][dele]['rewardPerBlock']) + " got " + str(data[i]['delegator'][dele]['diff']))
 
-    if data[i]['miner']['diff'] != validatorDict[cycleSwap][miner]['rewardPerBlock']:
+    if (data[i]['miner']['diff'] - feeFromTrans) != validatorDict[cycleSwap][miner]['rewardPerBlock']:
         print("reward at block " + str(i) + " for validator " + miner + " is not correct! expected " + str(validatorDict[cycleSwap][miner]['rewardPerBlock']) + " got " + str(data[i]['miner']['diff']))
 
     if i % 250 == 0:
