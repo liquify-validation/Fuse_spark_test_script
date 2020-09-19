@@ -123,8 +123,9 @@ cycleSwap = 0
 oldTimeStamp = 0
 
 for i in range (100000, upToo, 1):
-    miner = web3Fuse.eth.getBlock(i)['miner']
-    trans = web3Fuse.eth.getBlock(i)['transactions']
+    block = web3Fuse.eth.getBlock(i)
+    miner = block['miner']
+    trans = block['transactions']
 
     feeFromTrans = 0
 
