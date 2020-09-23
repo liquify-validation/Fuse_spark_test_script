@@ -2,10 +2,10 @@ import json
 import matplotlib.pyplot as plt
 import csv
 
-with open("results.json") as json_file:
+with open("data/results.json") as json_file:
     data = json.load(json_file)
 
-with open("cycleData.json") as json_file:
+with open("data/cycleData.json") as json_file:
     cycledata = json.load(json_file)
 
 
