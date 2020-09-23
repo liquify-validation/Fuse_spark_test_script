@@ -228,6 +228,7 @@ for i in range (startBlock, upToo, 1):
     if i == validatorDict[cycleSwap]['endBlock']:
         print("newCycleStarted block " + str(validatorDict[cycleSwap]['endBlock'] + 1))
         cycleSwap+=1
+        subCycleSwap=0
 
 with open('data/results.json', 'w') as fp:
     json.dump(data, fp)
