@@ -73,10 +73,12 @@ for i in cycledata:
             cycleGraph[val]['y'].append(cycledata[i][val]['rewardPerBlock'])
             pieChart[i]['nodeName'].append(val)
             pieChart[i]['nodeShare'].append(cycledata[i][val]['rewardToNode'])
-            pieChart[i]['title'] = "cycle " + str(cycledata[i]['startBlock']) + " to " + str(cycledata[i]['endBlock'])
+            pieChart[i]['title'] = "cycle " + str(cycledata[i]['startBlock']) + " to " + str(cycledata[i]['endBlock']) + " ( " + str(cycledata[i]['cycleLength']) + " blocks )"
 
+# skip first X pie charts
+skipPieCharts = 80
 for key in pieChart:
-    if (int(key) > 80):
+    if (int(key) > skipPieCharts):
         plt.pie(pieChart[key]['nodeShare'], labels=pieChart[key]['nodeName'],
             autopct='%1.1f%%', startangle=140)
 

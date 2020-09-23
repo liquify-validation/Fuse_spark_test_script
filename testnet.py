@@ -14,7 +14,7 @@ blockRewardContract = web3Fuse.eth.contract(abi=blockRewardCon, address=REWARD_A
 
 
 newBlock = web3Fuse.eth.blockNumber
-
+# newBlock = 101000
 
 
 inflation = blockRewardContract.functions.getInflation().call()
@@ -25,12 +25,12 @@ initSupply = 300000000
 
 cycleCounter = 0
 
-i = 100000
+startBlock = 100000
 
 validatorDict = {}
 upToo = 0
 
-
+i = startBlock
 #get the validators per cycle
 while i < newBlock:
     valCounter = 0
@@ -82,7 +82,7 @@ while i < newBlock:
     #skew the start if we have had new or left validators
     itr = 0
     if(cycleCounter != 0):
-        if (len(validatorDict[cycleCounter]) != (len(validatorDict[cycleCounter-1])-3)):
+        if (len(validatorDict[cycleCounter]) != (len(validatorDict[cycleCounter-1])-4)):
             #check at what block we change at
             NotChanged = True
             oldLen = len(fuseConsensusContract.functions.currentValidators().call(block_identifier=i-1))
@@ -97,6 +97,7 @@ while i < newBlock:
     validatorDict[cycleCounter]['startBlock'] = i + itr
     validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(
         block_identifier=i) - 1
+    validatorDict[cycleCounter]['cycleLength'] = validatorDict[cycleCounter]['endBlock'] - validatorDict[cycleCounter]['startBlock']
     validatorDict[cycleCounter]['propagation'] = itr
 
 
@@ -110,19 +111,24 @@ while i < newBlock:
 
 upToo = newBlock
 
-with open('cycleData.csv', 'w') as f:
+print('Done gathering the  cycle data')
+
+with open('data/cycleData.csv', 'w') as f:
     w = csv.writer(f)
     w.writerows(validatorDict.items())
+    print('Done writing cycleData.csv')
 
-with open('cycleData.json', 'w') as fp:
+with open('data/cycleData.json', 'w') as fp:
     json.dump(validatorDict, fp)
+    print('Done writing cycleData.json')
+
 
 data = {}
 cycleSwap = 0
 
 oldTimeStamp = 0
 
-for i in range (100000, upToo, 1):
+for i in range (startBlock, upToo, 1):
     block = web3Fuse.eth.getBlock(i)
     miner = block['miner']
     trans = block['transactions']
@@ -164,17 +170,17 @@ for i in range (100000, upToo, 1):
         print("atBlock ", str(i))
 
     if i % 5000 == 0:
-        with open('results.json', 'w') as fp:
+        with open('data/results.json', 'w') as fp:
             json.dump(data, fp)
 
     if i == validatorDict[cycleSwap]['endBlock']:
         print("newCycleStarted block " + str(validatorDict[cycleSwap]['endBlock'] + 1))
         cycleSwap+=1
 
-with open('results.json', 'w') as fp:
+with open('data/results.json', 'w') as fp:
     json.dump(data, fp)
 
-with open('results.csv', 'w') as f:
+with open('data/results.csv', 'w') as f:
   w = csv.writer(f)
   w.writerows(data.items())
 
