@@ -2,6 +2,10 @@ from web3 import Web3
 import csv
 import json
 from testnetCon import *
+import copy
+
+
+
 
 
 RPC_ADDRESS = 'https://testrpc.fuse.io/'
@@ -19,6 +23,70 @@ newBlock = web3Fuse.eth.blockNumber
 
 inflation = blockRewardContract.functions.getInflation().call()
 blocksPerYear = blockRewardContract.functions.getBlocksPerYear().call()
+
+def getVals(data, block):
+    vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=block)
+    for val in vals:
+        data[val] = {}
+
+def calculateStakedAmount(data, block):
+    #data = dict of val data
+    for val in data:
+        delegatorsForVal = fuseConsensusContract.functions.delegators(val).call(block_identifier=block)
+        data[val]["delegators"] = {}
+        sumOfDelegates = 0
+        for dele in delegatorsForVal:
+            data[val]["delegators"][dele] = {}
+            delegatedAmount = float(
+                fuseConsensusContract.functions.delegatedAmount(dele, val).call(block_identifier=block) / 10 ** 18)
+            data[val]["delegators"][dele][
+                'Amount'] = delegatedAmount
+            sumOfDelegates += delegatedAmount
+
+        stakedAmount = float(fuseConsensusContract.functions.stakeAmount(val).call(block_identifier=block) / 10 ** 18)
+        data[val]['stakedAmount'] = stakedAmount
+        data[val]['selfStaked'] = stakedAmount - sumOfDelegates
+        data[val]['fee'] = float(
+            fuseConsensusContract.functions.validatorFee(val).call(block_identifier=block) / 10 ** 18)
+
+    totalStakedCycle = 0
+    for val in data:
+        totalStakedCycle += data[val]['stakedAmount']
+
+    return totalStakedCycle
+
+def calculateRewards(data, totalStaked):
+    valCounter = len(data)
+    for val in data:
+        #calc rewards
+        data[val]['rewardToNode'] = infPerCycle * (data[val]['stakedAmount']/totalStaked)
+        delegatesRewards = 0
+        for dele in data[val]["delegators"]:
+            data[val]["delegators"][dele]['reward'] = data[val]['rewardToNode'] * (data[val]["delegators"][dele]['Amount'] / data[val]['stakedAmount']) * (1-data[val]['fee'])
+            data[val]["delegators"][dele]['rewardPerBlock'] = round((data[val]["delegators"][dele]['reward']/cycleDuration) * valCounter,6)
+            delegatesRewards += data[val]["delegators"][dele]['reward']
+        data[val]['reward'] = data[val]['rewardToNode'] - delegatesRewards
+        data[val]['rewardPerBlock'] = round((data[val]['reward']/cycleDuration) * valCounter,6)
+        
+def checkForChange(data, subCycleSwap, block):
+    retVal = False
+    tempBlockData = {}
+    getVals(tempBlockData, block)
+    totalStaked = calculateStakedAmount(tempBlockData, block)
+    #validatorDict[cycleCounter]['subCycleData'][0]['totalStaked'] = totalStaked
+    calculateRewards(tempBlockData, totalStaked)
+
+    if tempBlockData != data[subCycleSwap]['validators']:
+        print("stakes have changed!")
+        subCycleSwap+=1
+        data[subCycleSwap] = {}
+        data[subCycleSwap]['validators'] = copy.deepcopy(tempBlockData)
+        data[subCycleSwap]['totalStaked'] = totalStaked
+        data[subCycleSwap]['startBlock'] = block
+        data[subCycleSwap]['endBlock'] = copy.deepcopy(data[subCycleSwap-1]['endBlock'])
+        data[subCycleSwap - 1]['endBlock'] = block - 1
+        retVal = True
+    return retVal
 
 initSupply = 300000000
 
@@ -39,50 +107,19 @@ while i < newBlock:
     infPerYear = initSupply * (inflation / 100)
     infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
 
+    validatorDict[cycleCounter]['subCycleData'] = {}
+    validatorDict[cycleCounter]['subCycleData'][0] = {}
+    validatorDict[cycleCounter]['subCycleData'][0]['validators'] = {}
 
-    vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=i + 20)
-    for val in vals:
-        validatorDict[cycleCounter][val] = {}
-        valCounter += 1
-
-
-
-    #work out share and if they have delegates in that cycle
-    for val in validatorDict[cycleCounter]:
-        delegatorsForVal = fuseConsensusContract.functions.delegators(val).call(block_identifier=i)
-        validatorDict[cycleCounter][val]["delegators"] = {}
-        sumOfDelegates = 0
-        for dele in delegatorsForVal:
-            validatorDict[cycleCounter][val]["delegators"][dele] = {}
-            delegatedAmount = float(fuseConsensusContract.functions.delegatedAmount(dele,val).call(block_identifier=i)/10**18)
-            validatorDict[cycleCounter][val]["delegators"][dele]['Amount'] = delegatedAmount
-            sumOfDelegates += delegatedAmount
-
-        stakedAmount = float(fuseConsensusContract.functions.stakeAmount(val).call(block_identifier=i)/10**18)
-        validatorDict[cycleCounter][val]['stakedAmount'] = stakedAmount
-        validatorDict[cycleCounter][val]['selfStaked'] = stakedAmount - sumOfDelegates
-        validatorDict[cycleCounter][val]['fee'] = float(fuseConsensusContract.functions.validatorFee(val).call(block_identifier=i)/10**18)
-
-    totalStakedCycle = 0
-    for val in validatorDict[cycleCounter]:
-        totalStakedCycle += validatorDict[cycleCounter][val]['stakedAmount']
-
-    for val in validatorDict[cycleCounter]:
-        #calc rewards
-        validatorDict[cycleCounter][val]['rewardToNode'] = infPerCycle * (validatorDict[cycleCounter][val]['stakedAmount']/totalStakedCycle)
-        delegatesRewards = 0
-        for dele in validatorDict[cycleCounter][val]["delegators"]:
-            validatorDict[cycleCounter][val]["delegators"][dele]['reward'] = validatorDict[cycleCounter][val]['rewardToNode'] * (validatorDict[cycleCounter][val]["delegators"][dele]['Amount'] / validatorDict[cycleCounter][val]['stakedAmount']) * (1-validatorDict[cycleCounter][val]['fee'])
-            validatorDict[cycleCounter][val]["delegators"][dele]['rewardPerBlock'] = round((validatorDict[cycleCounter][val]["delegators"][dele]['reward']/cycleDuration) * valCounter,6)
-            delegatesRewards += validatorDict[cycleCounter][val]["delegators"][dele]['reward']
-        validatorDict[cycleCounter][val]['reward'] = validatorDict[cycleCounter][val]['rewardToNode'] - delegatesRewards
-        validatorDict[cycleCounter][val]['rewardPerBlock'] = round((validatorDict[cycleCounter][val]['reward']/cycleDuration) * valCounter,6)
-
+    getVals(validatorDict[cycleCounter]['subCycleData'][0]['validators'],i + 20)
+    totalStaked = calculateStakedAmount(validatorDict[cycleCounter]['subCycleData'][0]['validators'],i)
+    validatorDict[cycleCounter]['subCycleData'][0]['totalStaked'] = totalStaked
+    calculateRewards(validatorDict[cycleCounter]['subCycleData'][0]['validators'],totalStaked)
 
     #skew the start if we have had new or left validators
     itr = 0
     if(cycleCounter != 0):
-        if (len(validatorDict[cycleCounter]) != (len(validatorDict[cycleCounter-1])-4)):
+        if (len(validatorDict[cycleCounter]['subCycleData'][0]['validators']) != (len(validatorDict[cycleCounter-1]['subCycleData'][0]['validators']))):
             #check at what block we change at
             NotChanged = True
             oldLen = len(fuseConsensusContract.functions.currentValidators().call(block_identifier=i-1))
@@ -99,6 +136,9 @@ while i < newBlock:
         block_identifier=i) - 1
     validatorDict[cycleCounter]['cycleLength'] = validatorDict[cycleCounter]['endBlock'] - validatorDict[cycleCounter]['startBlock']
     validatorDict[cycleCounter]['propagation'] = itr
+
+    validatorDict[cycleCounter]['subCycleData'][0]['startBlock'] = i + itr
+    validatorDict[cycleCounter]['subCycleData'][0]['endBlock'] = i + itr
 
 
 
@@ -124,11 +164,16 @@ with open('data/cycleData.json', 'w') as fp:
 
 
 data = {}
+
 cycleSwap = 0
+subCycleSwap = 0
 
 oldTimeStamp = 0
 
+
+
 for i in range (startBlock, upToo, 1):
+
     block = web3Fuse.eth.getBlock(i)
     miner = block['miner']
     trans = block['transactions']
@@ -149,22 +194,29 @@ for i in range (startBlock, upToo, 1):
     data[i]['miner']['balanceNow'] = float(web3Fuse.eth.getBalance(miner, i)/10**18)
     diff = (data[i]['miner']['balanceNow']) - (data[i]['miner']['balanceBefore'])
     data[i]['miner']['diff'] = round(diff,6)
-    data[i]['miner']['expectedReward'] = validatorDict[cycleSwap][miner]['rewardPerBlock']
+    data[i]['miner']['expectedReward'] = validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]['rewardPerBlock']
     data[i]['miner']['transFees'] = feeFromTrans
     data[i]['delegator'] = {}
 
-    for dele in validatorDict[cycleSwap][miner]["delegators"]:
+    for dele in validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]["delegators"]:
         data[i]['delegator'][dele] = {}
         data[i]['delegator'][dele]['balanceBefore'] = float(web3Fuse.eth.getBalance(dele, i - 1) / 10 ** 18)
         data[i]['delegator'][dele]['balanceNow'] = float(web3Fuse.eth.getBalance(dele, i) / 10 ** 18)
         diff = (data[i]['delegator'][dele]['balanceNow']) - (data[i]['delegator'][dele]['balanceBefore'])
         data[i]['delegator'][dele]['diff'] = round(diff, 6)
-        data[i]['delegator'][dele]['expectedReward'] = validatorDict[cycleSwap][miner]["delegators"][dele]['rewardPerBlock']
-        if data[i]['delegator'][dele]['diff'] != validatorDict[cycleSwap][miner]["delegators"][dele]['rewardPerBlock']:
-            print("reward at block " + str(i) + " for delegator " + dele + " is not correct! expected " + str(validatorDict[cycleSwap][miner]["delegators"][dele]['rewardPerBlock']) + " got " + str(data[i]['delegator'][dele]['diff']))
+        data[i]['delegator'][dele]['expectedReward'] = validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]["delegators"][dele]['rewardPerBlock']
+        if data[i]['delegator'][dele]['diff'] != validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]["delegators"][dele]['rewardPerBlock']:
+            print("reward at block " + str(i) + " for delegator " + dele + " is not correct! expected " + str(validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]["delegators"][dele]['rewardPerBlock']) + " got " + str(data[i]['delegator'][dele]['diff']))
+            if(checkForChange(validatorDict[cycleSwap]['subCycleData'],subCycleSwap,i)):
+                subCycleSwap += 1
+                continue
 
-    if (data[i]['miner']['diff'] - feeFromTrans) != validatorDict[cycleSwap][miner]['rewardPerBlock']:
-        print("reward at block " + str(i) + " for validator " + miner + " is not correct! expected " + str(validatorDict[cycleSwap][miner]['rewardPerBlock']) + " got " + str(data[i]['miner']['diff']))
+    if (data[i]['miner']['diff'] - feeFromTrans) != validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]['rewardPerBlock']:
+        print("reward at block " + str(i) + " for validator " + miner + " is not correct! expected " + str(validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]['rewardPerBlock']) + " got " + str(data[i]['miner']['diff']))
+        if(checkForChange(validatorDict[cycleSwap]['subCycleData'], subCycleSwap,i)):
+            subCycleSwap += 1
+            continue
+
 
     if i % 250 == 0:
         print("atBlock ", str(i))
@@ -183,4 +235,13 @@ with open('data/results.json', 'w') as fp:
 with open('data/results.csv', 'w') as f:
   w = csv.writer(f)
   w.writerows(data.items())
+
+with open('data/cycleData.csv', 'w') as f:
+    w = csv.writer(f)
+    w.writerows(validatorDict.items())
+    print('Done writing cycleData.csv')
+
+with open('data/cycleData.json', 'w') as fp:
+    json.dump(validatorDict, fp)
+    print('Done writing cycleData.json')
 
