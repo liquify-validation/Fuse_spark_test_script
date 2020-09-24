@@ -138,7 +138,7 @@ while i < newBlock:
     validatorDict[cycleCounter]['propagation'] = itr
 
     validatorDict[cycleCounter]['subCycleData'][0]['startBlock'] = i + itr
-    validatorDict[cycleCounter]['subCycleData'][0]['endBlock'] = i + itr
+    validatorDict[cycleCounter]['subCycleData'][0]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i) - 1
 
 
 
