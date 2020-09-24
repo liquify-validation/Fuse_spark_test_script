@@ -8,6 +8,24 @@ with open("data/results.json") as json_file:
 with open("data/cycleData.json") as json_file:
     cycledata = json.load(json_file)
 
+# AP This is to fix a bug in the main testnet code will find it later!
+# for i in cycledata:
+#     lastKey = list(cycledata[i]['subCycleData'])[-1]
+#     for subCycle in cycledata[i]['subCycleData']:
+#         if subCycle == lastKey:
+#             cycledata[i]['subCycleData'][subCycle]['endBlock'] = cycledata[i]['endBlock']
+#         else:
+#             cycledata[i]['subCycleData'][subCycle]['endBlock'] = cycledata[str(int(i)+1)]['startBlock'] - 1
+#
+#
+# with open('data/cycleData.csv', 'w') as f:
+#     w = csv.writer(f)
+#     w.writerows(cycledata.items())
+#     print('Done writing cycleData.csv')
+#
+# with open('data/cycleData.json', 'w') as fp:
+#     json.dump(cycledata, fp)
+#     print('Done writing cycleData.json')
 
 graph = {}
 
@@ -61,31 +79,35 @@ for i in cycledata:
     pieChart[i]['nodeName'] = []
     pieChart[i]['nodeShare'] = []
     plt.plot(x=cycledata[i]['startBlock'], color='gray')
-    for val in cycledata[i]:
-        if type(cycledata[i][val]) is dict:
-            if val not in cycleGraph:
-                cycleGraph[val] = {}
-                cycleGraph[val]['x'] = []
-                cycleGraph[val]['y'] = []
-            cycleGraph[val]['x'].append(cycledata[i]['startBlock'])
-            cycleGraph[val]['y'].append(cycledata[i][val]['rewardPerBlock'])
-            cycleGraph[val]['x'].append(cycledata[i]['endBlock'])
-            cycleGraph[val]['y'].append(cycledata[i][val]['rewardPerBlock'])
-            pieChart[i]['nodeName'].append(val)
-            pieChart[i]['nodeShare'].append(cycledata[i][val]['rewardToNode'])
-            pieChart[i]['title'] = "cycle " + str(cycledata[i]['startBlock']) + " to " + str(cycledata[i]['endBlock']) + " ( " + str(cycledata[i]['cycleLength']) + " blocks )"
-
-# skip first X pie charts
-skipPieCharts = 80
-for key in pieChart:
-    if (int(key) > skipPieCharts):
-        plt.pie(pieChart[key]['nodeShare'], labels=pieChart[key]['nodeName'],
-            autopct='%1.1f%%', startangle=140)
-
-        plt.title(pieChart[key]['title'])
-        plt.axis('equal')
-        plt.savefig('pieCharts/'+ pieChart[key]['title'] + '.jpeg', dpi=300, bbox_inches='tight')
-        plt.clf()
+    for subCycle in cycledata[i]['subCycleData']:
+        for val in cycledata[i]['subCycleData'][subCycle]['validators']:
+            if type(cycledata[i]['subCycleData'][subCycle]['validators'][val]) is dict:
+                if val not in cycleGraph:
+                    cycleGraph[val] = {}
+                    cycleGraph[val]['x'] = []
+                    cycleGraph[val]['y'] = []
+                cycleGraph[val]['x'].append(cycledata[i]['subCycleData'][subCycle]['startBlock'])
+                cycleGraph[val]['y'].append(cycledata[i]['subCycleData'][subCycle]['validators'][val]['rewardPerBlock'])
+                cycleGraph[val]['x'].append(cycledata[i]['subCycleData'][subCycle]['endBlock'])
+                cycleGraph[val]['y'].append(cycledata[i]['subCycleData'][subCycle]['validators'][val]['rewardPerBlock'])
+#                 pieChart[i]['nodeName'].append(val)
+#                 pieChart[i]['nodeShare'].append(cycledata[i][val]['rewardToNode'])
+#                 pieChart[i]['title'] = "cycle " + str(cycledata[i]['startBlock']) + " to " + str(cycledata[i]['endBlock']) + " ( " + str(cycledata[i]['cycleLength']) + " blocks )"
+#
+# # skip first X pie charts
+# skipPieCharts = 80
+# for key in pieChart:
+#     if (int(key) > skipPieCharts):
+#         plt.pie(pieChart[key]['nodeShare'], labels=pieChart[key]['nodeName'],
+#             autopct='%1.1f%%', startangle=140)
+#
+#         plt.title(pieChart[key]['title'])
+#         plt.axis('equal')
+#         plt.savefig('pieCharts/'+ pieChart[key]['title'] + '.jpeg', dpi=300, bbox_inches='tight')
+#         plt.clf()
 
 for key in cycleGraph:
     plt.plot(cycleGraph[key]['x'], cycleGraph[key]['y'], label=key)
+
+plt.legend()
+plt.show()
