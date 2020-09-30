@@ -4,10 +4,6 @@ import json
 from testnetCon import *
 import copy
 
-
-
-
-
 RPC_ADDRESS = 'https://testrpc.fuse.io/'
 CONSENSUS_ADDR = Web3.toChecksumAddress('0xF5C4782d61611e12CD9651355841716ea1801d5c')
 REWARD_ADDR = Web3.toChecksumAddress('0x3b8C048DdEC04709125aF939360BDD619Ec6e9E3')
@@ -23,6 +19,9 @@ newBlock = web3Fuse.eth.blockNumber
 
 inflation = blockRewardContract.functions.getInflation().call()
 blocksPerYear = blockRewardContract.functions.getBlocksPerYear().call()
+
+initSupply = 300000000
+infPerYear = initSupply * (inflation / 100)
 
 def getVals(data, block):
     vals = fuseConsensusContract.functions.currentValidators().call(block_identifier=block)
@@ -48,6 +47,7 @@ def calculateStakedAmount(data, block):
         data[val]['selfStaked'] = stakedAmount - sumOfDelegates
         data[val]['fee'] = float(
             fuseConsensusContract.functions.validatorFee(val).call(block_identifier=block) / 10 ** 18)
+        data[val]['blockCounter'] = 0
 
     totalStakedCycle = 0
     for val in data:
@@ -55,8 +55,11 @@ def calculateStakedAmount(data, block):
 
     return totalStakedCycle
 
-def calculateRewards(data, totalStaked):
+def calculateRewards(data, totalStaked, block):
     valCounter = len(data)
+    cycleDuration = fuseConsensusContract.functions.getCycleDurationBlocks().call(block_identifier=block)
+
+    infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
     for val in data:
         #calc rewards
         data[val]['rewardToNode'] = infPerCycle * (data[val]['stakedAmount']/totalStaked)
@@ -74,9 +77,9 @@ def checkForChange(data, subCycleSwap, block):
     getVals(tempBlockData, block)
     totalStaked = calculateStakedAmount(tempBlockData, block)
     #validatorDict[cycleCounter]['subCycleData'][0]['totalStaked'] = totalStaked
-    calculateRewards(tempBlockData, totalStaked)
+    calculateRewards(tempBlockData, totalStaked, block)
 
-    if tempBlockData != data[subCycleSwap]['validators']:
+    if totalStaked != data[subCycleSwap]['totalStaked']:
         print("stakes have changed!")
         subCycleSwap+=1
         data[subCycleSwap] = {}
@@ -88,14 +91,13 @@ def checkForChange(data, subCycleSwap, block):
         retVal = True
     return retVal
 
-initSupply = 300000000
-
-
 cycleCounter = 0
 
 startBlock = 100000
 
 validatorDict = {}
+transactioDict = {}
+
 upToo = 0
 
 i = startBlock
@@ -104,8 +106,6 @@ while i < newBlock:
     valCounter = 0
     validatorDict[cycleCounter] = {}
     cycleDuration = fuseConsensusContract.functions.getCycleDurationBlocks().call(block_identifier=i)
-    infPerYear = initSupply * (inflation / 100)
-    infPerCycle = (infPerYear / blocksPerYear) * cycleDuration
 
     validatorDict[cycleCounter]['subCycleData'] = {}
     validatorDict[cycleCounter]['subCycleData'][0] = {}
@@ -114,7 +114,7 @@ while i < newBlock:
     getVals(validatorDict[cycleCounter]['subCycleData'][0]['validators'],i + 20)
     totalStaked = calculateStakedAmount(validatorDict[cycleCounter]['subCycleData'][0]['validators'],i)
     validatorDict[cycleCounter]['subCycleData'][0]['totalStaked'] = totalStaked
-    calculateRewards(validatorDict[cycleCounter]['subCycleData'][0]['validators'],totalStaked)
+    calculateRewards(validatorDict[cycleCounter]['subCycleData'][0]['validators'],totalStaked,i + 20)
 
     #skew the start if we have had new or left validators
     itr = 0
@@ -130,15 +130,16 @@ while i < newBlock:
                 itr+=1
 
             validatorDict[cycleCounter-1]['endBlock'] = (i-1) + itr
+            validatorDict[cycleCounter-1]['cycleLength'] = validatorDict[cycleCounter-1]['endBlock'] - validatorDict[cycleCounter-1]['startBlock'] + 1
 
     validatorDict[cycleCounter]['startBlock'] = i + itr
     validatorDict[cycleCounter]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(
-        block_identifier=i) - 1
-    validatorDict[cycleCounter]['cycleLength'] = validatorDict[cycleCounter]['endBlock'] - validatorDict[cycleCounter]['startBlock']
+        block_identifier=i)
+    validatorDict[cycleCounter]['cycleLength'] = validatorDict[cycleCounter]['endBlock'] - validatorDict[cycleCounter]['startBlock'] + 1
     validatorDict[cycleCounter]['propagation'] = itr
 
     validatorDict[cycleCounter]['subCycleData'][0]['startBlock'] = i + itr
-    validatorDict[cycleCounter]['subCycleData'][0]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i) - 1
+    validatorDict[cycleCounter]['subCycleData'][0]['endBlock'] = fuseConsensusContract.functions.getCurrentCycleEndBlock().call(block_identifier=i)
 
 
 
@@ -198,6 +199,7 @@ for i in range (startBlock, upToo, 1):
     data[i]['miner']['transFees'] = feeFromTrans
     data[i]['delegator'] = {}
 
+
     for dele in validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]["delegators"]:
         data[i]['delegator'][dele] = {}
         data[i]['delegator'][dele]['balanceBefore'] = float(web3Fuse.eth.getBalance(dele, i - 1) / 10 ** 18)
@@ -217,13 +219,20 @@ for i in range (startBlock, upToo, 1):
             subCycleSwap += 1
             continue
 
+    validatorDict[cycleSwap]['subCycleData'][subCycleSwap]['validators'][miner]['blockCounter'] += 1
 
     if i % 250 == 0:
         print("atBlock ", str(i))
 
-    if i % 5000 == 0:
+    if i % 7500 == 0:
         with open('data/results.json', 'w') as fp:
             json.dump(data, fp)
+
+        with open('data/cycleData.json', 'w') as fp:
+            json.dump(validatorDict, fp)
+            print('Done writing cycleData.json')
+
+
 
     if i == validatorDict[cycleSwap]['endBlock']:
         print("newCycleStarted block " + str(validatorDict[cycleSwap]['endBlock'] + 1))

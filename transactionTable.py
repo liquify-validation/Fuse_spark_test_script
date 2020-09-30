@@ -64,7 +64,8 @@ for i in range (startCycle, endCycle, 1):
             transactionDict['validators'][transaction['to']]['to'][i][transactionDict['validators'][transaction['to']]['to'][i]['transCount']]['gas'] = transaction['gas']
             transactionDict['validators'][transaction['to']]['to'][i][transactionDict['validators'][transaction['to']]['to'][i]['transCount']]['gasPrice'] = transaction['gasPrice']
             transactionDict['validators'][transaction['to']]['to'][i][transactionDict['validators'][transaction['to']]['to'][i]['transCount']]['transFee'] = (transaction['gas'] * transaction['gasPrice'])/10**18
-        elif transaction['to'] in transactionDict['delegators']:
+
+        if transaction['to'] in transactionDict['delegators']:
             if i not in transactionDict['delegators'][transaction['to']]['to']:
                 transactionDict['delegators'][transaction['to']]['to'][i] = {}
                 transactionDict['delegators'][transaction['to']]['to'][i]['transCount'] = 1
@@ -77,7 +78,8 @@ for i in range (startCycle, endCycle, 1):
             transactionDict['delegators'][transaction['to']]['to'][i][transactionDict['delegators'][transaction['to']]['to'][i]['transCount']]['gas'] = transaction['gas']
             transactionDict['delegators'][transaction['to']]['to'][i][transactionDict['delegators'][transaction['to']]['to'][i]['transCount']]['gasPrice'] = transaction['gasPrice']
             transactionDict['delegators'][transaction['to']]['to'][i][transactionDict['delegators'][transaction['to']]['to'][i]['transCount']]['transFee'] = (transaction['gas'] * transaction['gasPrice'])/10**18
-        elif transaction['from'] in transactionDict['validators']:
+
+        if transaction['from'] in transactionDict['validators']:
             if i not in transactionDict['validators'][transaction['from']]['from']:
                 transactionDict['validators'][transaction['from']]['from'][i] = {}
                 transactionDict['validators'][transaction['from']]['from'][i]['transCount'] = 1
@@ -85,12 +87,13 @@ for i in range (startCycle, endCycle, 1):
                 transactionDict['validators'][transaction['from']]['from'][i]['transCount'] += 1
             transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']] = {}
             transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['hash'] = web3Fuse.toHex(transaction['hash'])
-            transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['from'] = transaction['to']
+            transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['to'] = transaction['to']
             transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['value'] = transaction['value'] / 10 ** 18
             transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['gas'] = transaction['gas']
             transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['gasPrice'] = transaction['gasPrice']
             transactionDict['validators'][transaction['from']]['from'][i][transactionDict['validators'][transaction['from']]['from'][i]['transCount']]['transFee'] = (transaction['gas'] * transaction['gasPrice']) / 10 ** 18
-        elif transaction['from'] in transactionDict['delegators']:
+
+        if transaction['from'] in transactionDict['delegators']:
             if i not in transactionDict['delegators'][transaction['from']]['from']:
                 transactionDict['delegators'][transaction['from']]['from'][i] = {}
                 transactionDict['delegators'][transaction['from']]['from'][i]['transCount'] = 1
@@ -98,7 +101,7 @@ for i in range (startCycle, endCycle, 1):
                 transactionDict['delegators'][transaction['from']]['from'][i]['transCount'] += 1
             transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']] = {}
             transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']]['hash'] = web3Fuse.toHex(transaction['hash'])
-            transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']]['from'] = transaction['to']
+            transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']]['to'] = transaction['to']
             transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']]['value'] = transaction['value'] / 10 ** 18
             transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']]['gas'] = transaction['gas']
             transactionDict['delegators'][transaction['from']]['from'][i][transactionDict['delegators'][transaction['from']]['from'][i]['transCount']]['gasPrice'] = transaction['gasPrice']
